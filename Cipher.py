@@ -273,9 +273,114 @@ class Packet:
         return cls._get_sw(res) if len(res) == 2 else 0
 
     @classmethod
-    def req_dec_init(cls, text, meta):
+    def req_dec_init(cls, meta):
 
-        pass
+        meta_len = len(meta)
+        meta_crc = cls._make_checksum(meta)
+
+        ba = bytearray([Def.CIPHER_CLASS, Def.CIPHER_ENCRYPTION, Def.CIPHER_PARAM_GET, Def.CIPHER_PARAM_INIT])
+
+        ba.append(0)                            # dat[0] - extended length encoding
+        ba.append(meta_len >> 8 & 0xFF)
+        ba.append(meta_len >> 0 & 0xFF)
+        ba.append(meta_crc >> 8 & 0xFF)
+        ba.append(meta_crc >> 0 & 0xFF)
+        ba += meta
+
+        return ba
+
+    @classmethod
+    def res_dec_init(cls, res):
+
+        return cls._get_sw(res) if len(res) == 2 else 0
+
+    @classmethod
+    def req_dec_do(cls, data):
+
+        data_len = len(data)
+        data_crc = cls._make_checksum(data)
+
+        ba = bytearray([Def.CIPHER_CLASS, Def.CIPHER_ENCRYPTION, Def.CIPHER_PARAM_GET, Def.CIPHER_PARAM_DO])
+
+        ba.append(0)                            # dat[0] - extended length encoding
+        ba.append(data_len >> 8 & 0xFF)
+        ba.append(data_len >> 0 & 0xFF)
+        ba.append(data_crc >> 8 & 0xFF)
+        ba.append(data_crc >> 0 & 0xFF)
+        ba += data
+
+        return ba
+
+    @classmethod
+    def res_dec_do(cls, res):
+
+        try:
+
+            sw = cls._get_sw(res)
+            dec = b''
+
+            if res[0] == 0:
+
+                dec_len = res[1] << 8 | res[2]
+                dec_crc = res[3] << 8 | res[4]
+                dec = res[5:len(res) - 2]
+
+                if cls._make_checksum(dec) != dec_crc or len(dec) != dec_len:
+                    dec = b''
+
+            return sw, dec
+
+        except:
+
+            return 0, b''
+
+    @classmethod
+    def req_dec_done(cls):
+
+        return bytearray([Def.CIPHER_CLASS, Def.CIPHER_ENCRYPTION, Def.CIPHER_PARAM_GET, Def.CIPHER_PARAM_DONE])
+
+    @classmethod
+    def res_dec_done(cls, res):
+
+        try:
+
+            sw = cls._get_sw(res)
+            dec = b''
+
+            if res[0] == 0:
+
+                dec_len = res[1] << 8 | res[2]
+                dec_crc = res[3] << 8 | res[4]
+                dec = res[5:len(res)-2]
+
+                if cls._make_checksum(dec) != dec_crc or len(dec) != dec_len:
+                    dec = b''
+
+            return sw, dec
+
+        except:
+
+            return 0, b''
+
+    @classmethod
+    def req_dec_sign(cls):
+
+        return bytearray([Def.CIPHER_CLASS, Def.CIPHER_ENCRYPTION, Def.CIPHER_PARAM_GET, Def.CIPHER_PARAM_SIGN])
+
+    @classmethod
+    def res_dec_sign(cls, res):
+
+        return cls._get_sw(res) if len(res) == 2 else 0
+
+    @classmethod
+    def req_dec_term(cls):
+
+        return bytearray([Def.CIPHER_CLASS, Def.CIPHER_ENCRYPTION, Def.CIPHER_PARAM_GET, Def.CIPHER_PARAM_TERM])
+
+    @classmethod
+    def res_dec_term(cls, res):
+
+        return cls._get_sw(res) if len(res) == 2 else 0
 
     @classmethod
     def _check_checksum(cls, crc, ba):

@@ -52,8 +52,8 @@ class CryptDongle(QDialog):
         self.ui_.pushButton_Version.clicked.connect(self.slot_pushbutton_version_clicked)
         self.ui_.pushButton_SetKey.clicked.connect(self.slot_pushbutton_set_key_clicked)
         self.ui_.pushButton_GetKey.clicked.connect(self.slot_pushbutton_get_key_clicked)
-
-        self.ui_.pushButton.clicked.connect(self.slot_pushbutton_clicked)
+        self.ui_.pushButton_Encrypt.clicked.connect(self.slot_pushbutton_encrypt_clicked)
+        self.ui_.pushButton_Decrypt.clicked.connect(self.slot_pushbutton_decrypt_clicked)
 
         self.ui_.show()
 
@@ -110,49 +110,59 @@ class CryptDongle(QDialog):
         else:
             self.logging('>> KEY Failed : {} <<'.format(hex(sw)))
 
-    def slot_pushbutton_enc_clicked(self):
+    def slot_pushbutton_encrypt_clicked(self):
 
         file_path = QFileDialog.getOpenFileName(self)
+        file_context = b''
 
         if len(file_path[0]) > 0:
 
-            file_handle = open(file_path[0], 'rb')
-            file_context = file_handle.read()
-            file_handle.close()
-
-            ciphertext, metadata = self._encryption(file_context)
+            with open(file_path[0], 'rb') as f:
+                file_context = f.read()
 
             if len(file_context) > 0:
 
-                file_handle = open(file_path[0] + '.cipher', 'wb')
-                file_handle.write(ciphertext)
-                file_handle.close()
+                self.logging('>> ENCRYPTION FILE : {}'.format(file_path[0]))
 
-                file_handle = open(file_path[0] + '.meta', 'wb')
-                file_handle.write(metadata)
-                file_handle.close()
+                ciphertext, metadata = self._encryption(file_context)
 
-    def slot_pushbutton_clicked(self):
+                if len(ciphertext) > 0 and len(metadata) > 0:
+
+                    with open(file_path[0] + '.cipher', 'wb') as f:
+                        f.write(ciphertext)
+
+                    with open(file_path[0] + '.meta', 'wb') as f:
+                        f.write(metadata)
+
+                else:
+
+                    self.logging('>> ENCRYPTION Failed')
+
+    def slot_pushbutton_decrypt_clicked(self):
 
         file_path = QFileDialog.getOpenFileName(self)
+        file_context = b''
 
         if len(file_path[0]) > 0:
 
-            file_handle = open(file_path[0], 'rb')
-            text_context = file_handle.read()
-            file_handle.close()
+            with open(file_path[0], 'rb') as f:
+                file_context = f.read()
 
-            file_handle = open(file_path[0].replace('cipher', 'meta'), 'rb')
-            meta_context = file_handle.read()
-            file_handle.close()
+            if len(file_context) > 0:
 
-            plain_text = self._decryption(text_context, meta_context)
+                self.logging('>> DECRYPTION FILE : {}'.format(file_path[0]))
 
-            if len(plain_text) > 0:
+                metadata = b''
+                with open(file_path[0].replace('cipher', 'meta'), 'rb') as f:
+                    metadata = f.read()
 
-                file_handle = open(file_path[0] + 'plain', 'wb')
-                file_handle.write(plain_text)
-                file_handle.close()
+                if len(metadata) > 0:
+                    plaintext = self._decryption(file_context, metadata)
+
+                    if len(plaintext) > 0:
+
+                        with open(file_path[0].replace('cipher', 'plain'), 'wb') as f:
+                            f.write(plaintext)
 
     def logging(self, msg):
 
@@ -160,14 +170,14 @@ class CryptDongle(QDialog):
             msg = Utils.ba_to_hex_str(msg)
         self.ui_.plainTextEdit_Logging.appendPlainText(msg)
 
-    def _encryption(self, plaintext):
+    def _encryption(self, text):
 
         ciphertext = bytearray()
         metadata = bytearray()
 
         ## INIT
 
-        print('INIT:', datetime.now())
+        self.logging('>> INIT: {}'.format(datetime.now()))
 
         req = Packet.req_enc_init()
         res = self.hidif_.cmd_cipher(req)
@@ -179,12 +189,12 @@ class CryptDongle(QDialog):
 
         ## DO
 
-        print('DO:', datetime.now())
+        self.logging('>> DO: {}'.format(datetime.now()))
 
         pos = 0
-        while pos < len(plaintext):
+        while pos < len(text):
 
-            send_data = plaintext[pos:pos+Def.CIPHER_BLOCK_SIZE]
+            send_data = text[pos:pos+Def.CIPHER_BLOCK_SIZE]
 
             req = Packet.req_enc_do(send_data)
             res = self.hidif_.cmd_cipher(req)
@@ -194,86 +204,124 @@ class CryptDongle(QDialog):
                 ciphertext += enc
                 pos += len(send_data)
             else:
-                self.logging('ERROR Position: {}'.format(pos))
+                self.logging('>> ERROR Position: {}'.format(pos))
 
         ## DONE
 
-        print('DONE:', datetime.now())
+        self.logging('>> DONE: {}'.format(datetime.now()))
 
         req = Packet.req_enc_done()
         res = self.hidif_.cmd_cipher(req)
         sw, enc = Packet.res_enc_done(res)
 
-        if sw != Def.CIPHER_SW_NO_ERROR:
-            print('DONE ERROR')
+        if sw != Def.CIPHER_SW_NO_ERROR or len(enc) == 0:
+            self.logging('>> ERROR')
             return b'', b''
 
         ciphertext += enc
 
         ## SIGN
 
-        print('SIGN:', datetime.now())
+        self.logging('>> SIGN: {}'.format(datetime.now()))
 
         req = Packet.req_enc_sign(test_public_key.encode(encoding='ascii'))
         res = self.hidif_.cmd_cipher(req)
         sw, k_md, sign = Packet.res_enc_sign(res)
 
-        if sw != Def.CIPHER_SW_NO_ERROR:
-            print('SIGN ERROR')
-            return b'', b''
-
         metadata = k_md + sign
 
-        self.logging('KEY ID:\n{}'.format(Utils.ba_to_hex_str(k_md)))
-        self.logging('SIGN:\n{}'.format(Utils.ba_to_hex_str(sign)))
+        if sw != Def.CIPHER_SW_NO_ERROR or len(metadata) == 0:
+            self.logging('SIGN ERROR : {}'.format(hex(sw)))
+            return b'', b''
 
         ## TERM
 
-        print('TERM:', datetime.now())
+        self.logging('>> TERM: {}'.format(datetime.now()))
 
         req = Packet.req_enc_term()
         res = self.hidif_.cmd_cipher(req)
         sw = Packet.res_enc_term(res)
 
         if sw != Def.CIPHER_SW_NO_ERROR:
-            print('TERM ERROR : {}'.format(hex(sw)))
+            self.logging('TERM ERROR : {}'.format(hex(sw)))
             return b'', b''
 
         return ciphertext, metadata
 
     def _decryption(self, text, meta):
 
-        plain_text = bytearray()
+        plaintext = bytearray()
 
         ## INIT
 
-        print('INIT:', datetime.now())
+        self.logging('>> INIT: {}'.format(datetime.now()))
 
-        req = Packet.req_dec_init()
-        res = self.hidif_.cmd_cipher(req)
+        req = Packet.req_dec_init(meta)
+        res = self.hidif_.cmd_cipher(req, 15000)
         sw = Packet.res_enc_init(res)
 
         if sw != Def.CIPHER_SW_NO_ERROR:
-            self.logging('>> ENCRYPTION INIT Failed : {} <<'.format(hex(sw)))
+            self.logging('>> INIT ERROR : {}'.format(hex(sw)))
             return b'', b''
 
         ## DO
 
-        print('DO:', datetime.now())
+        self.logging('>> DO: {}'.format(datetime.now()))
+
+        pos = 0
+        while pos < len(text):
+
+            send_data = text[pos:pos+Def.CIPHER_BLOCK_SIZE]
+
+            req = Packet.req_dec_do(send_data)
+            res = self.hidif_.cmd_cipher(req)
+            sw, dec = Packet.res_dec_do(res)
+
+            if sw == Def.CIPHER_SW_NO_ERROR and len(dec) > 0:
+                plaintext += dec
+                pos += len(send_data)
+            else:
+                self.logging('>> ERROR Position: {}'.format(pos))
 
         ## DONE
 
-        print('DONE:', datetime.now())
+        self.logging('>> DONE: {}'.format(datetime.now()))
+
+        req = Packet.req_dec_done()
+        res = self.hidif_.cmd_cipher(req)
+        sw, dec = Packet.res_dec_done(res)
+
+        if sw != Def.CIPHER_SW_NO_ERROR or len(dec) == 0:
+            self.logging('>> DONE ERROR : {} <<'.format(hex(sw)))
+            return b'', b''
+
+        plaintext += dec
 
         ## SIGN
 
-        print('SIGN:', datetime.now())
+        self.logging('>> SIGN: {}'.format(datetime.now()))
+
+        req = Packet.req_dec_sign()
+        res = self.hidif_.cmd_cipher(req)
+        sw = Packet.res_dec_sign(res)
+
+        if sw != Def.CIPHER_SW_NO_ERROR:
+            self.logging('>> SIGN ERROR : {} <<'.format(hex(sw)))
+            return b'', b''
 
         ## TERM
 
-        print('TERM:', datetime.now())
+        self.logging('>> TERM: {}'.format(datetime.now()))
 
-        return plain_text
+        req = Packet.req_dec_term()
+        res = self.hidif_.cmd_cipher(req)
+        sw = Packet.res_dec_term(res)
+
+        if sw != Def.CIPHER_SW_NO_ERROR:
+            self.logging('>> TERM ERROR : {} <<'.format(hex(sw)))
+            return b'', b''
+
+        return plaintext
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)

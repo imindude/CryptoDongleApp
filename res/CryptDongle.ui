@@ -46,9 +46,16 @@
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButton">
+        <widget class="QPushButton" name="pushButton_Encrypt">
          <property name="text">
-          <string>PushButton</string>
+          <string>Encrypt</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButton_Decrypt">
+         <property name="text">
+          <string>Decrypt</string>
          </property>
         </widget>
        </item>
