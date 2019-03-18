@@ -90,7 +90,7 @@ class CryptDongle(QDialog):
             key_file.close()
 
             req = Packet.req_key(key_context)
-            res = self.hidif_.cmd_cipher(req)
+            res = self.hidif_.cmd_cipher(req, 5000)
             sw, _ = Packet.res_key(res)
 
             self.logging('>> RESULT: {} <<'.format(hex(sw)))
@@ -105,7 +105,11 @@ class CryptDongle(QDialog):
         res = self.hidif_.cmd_cipher(req)
         sw, key = Packet.res_key(res)
 
-        if sw == Def.CIPHER_SW_NO_ERROR:
+        if sw == Def.CIPHER_SW_NO_ERROR and len(key) > 0:
+            if key[-1] == 0:
+                key = key[:-1]
+            with open('my_public_key.pem', 'wb') as f:
+                f.write(key)
             self.logging('>> READ PUBLIC KEY:\n{}<<'.format(Utils.ba_to_chr_str(key)))
         else:
             self.logging('>> KEY Failed : {} <<'.format(hex(sw)))
@@ -262,7 +266,7 @@ class CryptDongle(QDialog):
 
         if sw != Def.CIPHER_SW_NO_ERROR:
             self.logging('>> INIT ERROR : {}'.format(hex(sw)))
-            return b'', b''
+            return b''
 
         ## DO
 
@@ -291,23 +295,11 @@ class CryptDongle(QDialog):
         res = self.hidif_.cmd_cipher(req)
         sw, dec = Packet.res_dec_done(res)
 
-        if sw != Def.CIPHER_SW_NO_ERROR or len(dec) == 0:
+        if sw != Def.CIPHER_SW_NO_ERROR:
             self.logging('>> DONE ERROR : {} <<'.format(hex(sw)))
-            return b'', b''
+            return b''
 
         plaintext += dec
-
-        ## SIGN
-
-        self.logging('>> SIGN: {}'.format(datetime.now()))
-
-        req = Packet.req_dec_sign()
-        res = self.hidif_.cmd_cipher(req)
-        sw = Packet.res_dec_sign(res)
-
-        if sw != Def.CIPHER_SW_NO_ERROR:
-            self.logging('>> SIGN ERROR : {} <<'.format(hex(sw)))
-            return b'', b''
 
         ## TERM
 
@@ -319,7 +311,7 @@ class CryptDongle(QDialog):
 
         if sw != Def.CIPHER_SW_NO_ERROR:
             self.logging('>> TERM ERROR : {} <<'.format(hex(sw)))
-            return b'', b''
+            return b''
 
         return plaintext
 
