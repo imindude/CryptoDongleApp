@@ -34,8 +34,8 @@ class CryptDongle(QDialog):
 
         QDialog.__init__(self, parent)
 
-        # self.hidif_ = HidIf(self.logging)
-        self.hidif_ = HidIf()
+        self.hidif_ = HidIf(self.logging)
+        # self.hidif_ = HidIf()
 
         self.poll_ = QTimer()
         self.poll_.setSingleShot(True)
@@ -70,34 +70,39 @@ class CryptDongle(QDialog):
 
     def slot_pushbutton_version_clicked(self):
 
-        req = Packet.req_version()
-        res = self.hidif_.cmd_cipher(req)
-        sw, major, minor, build = Packet.res_version(res)
+        # req = Packet.req_version()
+        # res = self.hidif_.cmd_cipher(req)
+        # sw, major, minor, build = Packet.res_version(res)
 
-        if sw == Def.CIPHER_SW_NO_ERROR:
-            self.logging('>> VERSION : {}.{}.{} <<'.format(major, minor, build))
-        else:
-            self.logging('>> VERSION Failed : {} {} <<'.format(hex(sw), hex(build)))
+        # if sw == Def.CIPHER_SW_NO_ERROR:
+        #     self.logging('>> VERSION : {}.{}.{} <<'.format(major, minor, build))
+        # else:
+        #     self.logging('>> VERSION Failed : {} {} <<'.format(hex(sw), hex(build)))
+        req = Packet.req_get_pin()
+        res = self.hidif_.cmd_pin(req, 3000)
 
     def slot_pushbutton_set_key_clicked(self):
 
-        file_path = QFileDialog.getOpenFileName(self)
+        # file_path = QFileDialog.getOpenFileName(self)
 
-        if len(file_path[0]) > 0:
+        # if len(file_path[0]) > 0:
 
-            key_file = open(file_path[0], 'rb')
-            key_context = key_file.read()
-            key_file.close()
+        #     key_file = open(file_path[0], 'rb')
+        #     key_context = key_file.read()
+        #     key_file.close()
 
-            req = Packet.req_key(key_context)
-            res = self.hidif_.cmd_cipher(req, 5000)
-            sw, _ = Packet.res_key(res)
+        #     req = Packet.req_key(key_context)
+        #     res = self.hidif_.cmd_cipher(req, 5000)
+        #     sw, _ = Packet.res_key(res)
 
-            self.logging('>> RESULT: {} <<'.format(hex(sw)))
+        #     self.logging('>> RESULT: {} <<'.format(hex(sw)))
 
-        else:
+        # else:
 
-            self.logging('>> USER CANCEL <<')
+        #     self.logging('>> USER CANCEL <<')
+
+        req = Packet.req_set_pin()
+        res = self.hidif_.cmd_pin(req, 3000)
 
     def slot_pushbutton_get_key_clicked(self):
 

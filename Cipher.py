@@ -407,3 +407,13 @@ class Packet:
         sw = ba[n-2:]
 
         return sw[0] << 8 | sw[1]
+
+    @classmethod
+    def req_get_pin(cls):
+
+        return bytearray([0x54, 0x10, 0, 0, 0])
+
+    @classmethod
+    def req_set_pin(cls):
+
+        return bytearray([0x54, 0x11, 0, 0, 0])

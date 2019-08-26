@@ -7,8 +7,8 @@ class HidIf(object):
 
     byteorder = 'little'
 
-    DEF_VID = 0x0483
-    DEF_PID = 0x5150
+    DEF_VID = 0x31cb
+    DEF_PID = 0xf001
     DEF_EPI = 0x81
     DEF_EPO = 0x01
 
@@ -178,6 +178,16 @@ class HidIf(object):
     def is_connected(self):
 
         return True if self.dev_ != None else False
+
+    def cmd_pin(self, packet, timeout=1000):
+
+        if self.dev_ != None:
+            if self._send(0x54, packet, timeout) > 0:
+                cmd, rsp = self._recv(timeout)
+                if cmd == 0x54:
+                    return rsp
+
+        return b''
 
     def cmd_cipher(self, packet, timeout=1000):
 
